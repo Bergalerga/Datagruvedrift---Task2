@@ -4,7 +4,11 @@ import org.apache.commons.cli.*;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.lang.reflect.Array;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * This is the main class of the association rule generator.
@@ -78,17 +82,83 @@ public class Apriori {
      */
     public static String generateFrequentItemsets(List<SortedSet<String>> transactions, double support) {
         // TODO: Generate and print frequent itemsets given the method parameters.
+        int transactionSize = transactions.size();
+        ArrayList<ConcurrentHashMap<ArrayList<String>, Double>> items = new ArrayList<ConcurrentHashMap<ArrayList<String>, Double>>();
+        ArrayList<ArrayList<String>> candidates = new ArrayList<ArrayList<String>>();
 
-        return "size;items\n" +
-                "1;beer\n" +
-                "1;bread\n" +
-                "1;diapers\n" +
-                "1;milk\n" +
-                "2;beer,diapers\n" +
-                "2;bread,diapers\n" +
-                "2;bread,milk\n" +
-                "2;diapers,milk\n" +
-                "3;bread,diapers,milk\n";
+        for (SortedSet<String> list: transactions) {
+            for (String s : list) {
+                ArrayList<String> temp = new ArrayList<String>();
+                temp.add(s);
+                if (!candidates.contains(temp)) {
+                    candidates.add(temp);
+                }
+            }
+        }
+
+        while (candidates.size() > 0) {
+
+            ConcurrentHashMap<ArrayList<String>, Double> currentLevel = new ConcurrentHashMap<ArrayList<String>, Double>();
+            for (int x = 0; x < transactions.size(); x++) {
+                for (ArrayList<String> candidate : candidates) {
+                    if (transactions.get(x).containsAll(candidate)) {
+                        if (!checkContainment(currentLevel.keySet(), candidate)) {
+                            currentLevel.put(candidate, 1.0);
+                        } else {
+                            currentLevel.put(candidate, currentLevel.get(candidate) + 1.0);
+                        }
+                    }
+                }
+            }
+            for (Map.Entry<ArrayList<String>, Double> entry : currentLevel.entrySet()) {
+                if ((entry.getValue() / transactionSize < support)) {
+                    currentLevel.remove(entry.getKey());
+                }
+                /*
+                else {
+                    currentLevel.put(entry.getKey(), entry.getValue() / entry.getKey().size());
+                }
+                */
+            }
+            items.add(currentLevel);
+            candidates = generateNewCandidates(new ArrayList<ArrayList<String>>(items.get(items.size() - 1).keySet()));
+        }
+
+        return items.toString();
+    }
+
+    private static ArrayList<ArrayList<String>> generateNewCandidates(ArrayList<ArrayList<String>> items) {
+        ArrayList<ArrayList<String>> returnList = new ArrayList<ArrayList<String>>();
+        int creationLength = items.get(0).size();
+
+        for (int x = 0; x < items.size(); x++) {
+            for (int y = x + 1; y < items.size(); y++) {
+                ArrayList<String> common = new ArrayList<String>(items.get(x));
+                common.retainAll(items.get(y));
+                if (common.size() == creationLength - 1) {
+                    Set<String> hs = new HashSet<String>();
+                    hs.addAll(items.get(x));
+                    hs.addAll(items.get(y));
+                    ArrayList<String> toAdd = new ArrayList<String>(hs);
+                    if (!returnList.contains(toAdd)) {
+                        returnList.add(new ArrayList<String>(hs));
+                    }
+                }
+            }
+        }
+        return returnList;
+    }
+    private static boolean checkContainment(ConcurrentHashMap.KeySetView<ArrayList<String>, Double> a, ArrayList<String> b) {
+
+        if (a.size() == 0) {
+            return false;
+        }
+        for (ArrayList<String> arr : a) {
+            if (arr.equals(b)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
