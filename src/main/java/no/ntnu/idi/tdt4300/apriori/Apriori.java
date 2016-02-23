@@ -4,6 +4,7 @@ import org.apache.commons.cli.*;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.StringReader;
 import java.lang.reflect.Array;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -123,8 +124,7 @@ public class Apriori {
             items.add(currentLevel);
             candidates = generateNewCandidates(new ArrayList<ArrayList<String>>(items.get(items.size() - 1).keySet()));
         }
-
-        return items.toString();
+        return output(items);
     }
 
     private static ArrayList<ArrayList<String>> generateNewCandidates(ArrayList<ArrayList<String>> items) {
@@ -170,9 +170,24 @@ public class Apriori {
      * @param confidence   confidence threshold
      * @return association rules in CSV format with columns antecedent, consequent, confidence and support; columns are semicolon-separated and items are comma-separated
      */
-    public static String generateAssociationRules(List<SortedSet<String>> transactions, double support, double confidence) {
+    public static String generateAssociationRules(List<SortedSet<String>> transactions, double support, double confidence) throws IOException {
         // TODO: Generate and print association rules given the method parameters.
+        //READING ITEMS
+        String items = generateFrequentItemsets(transactions, support);
+        BufferedReader bufReader = new BufferedReader(new StringReader(items));
+        String line = null;
 
+        while( (line=bufReader.readLine()) != null )  {
+
+            //CHECKING EACH ITEM, AND CREATING ALL NONEMPTY SUBSETS AS AN ARRAYLIST<ARRAYLIST<STRING>>
+            String splitOnSemiColon = line.substring(line.indexOf(";") + 1);
+            String[] currentItems = splitOnSemiColon.split(",");
+            ArrayList<ArrayList<String>> allNonEmptySubsets = getAllNonEmptySubsets(currentItems);
+
+        }
+
+        return "hei";
+        /*
         return "antecedent;consequent;confidence;support\n" +
                 "diapers;beer;0.6;0.5\n" +
                 "beer;diapers;1.0;0.5\n" +
@@ -188,6 +203,42 @@ public class Apriori {
                 "bread;diapers,milk;0.6;0.5\n" +
                 "milk;bread,diapers;0.6;0.5\n" +
                 "diapers;bread,milk;0.6;0.5\n";
+        */
+    }
+
+    private static ArrayList<ArrayList<String>> getAllNonEmptySubsets(String[] currentItems) {
+
+        ArrayList<ArrayList<String>> ans = new ArrayList<ArrayList<String>>();
+        ans.add(new ArrayList<String>());
+        Arrays.sort(currentItems);
+        for (int i = 0; i < currentItems.length; i ++) {
+            int curSize = ans.size();
+            for (int j = 0; j < curSize; j ++) {
+                ArrayList<String> cur = new ArrayList<String>(ans.get(j));
+                cur.add(currentItems[i]);
+                if (cur.size() > 0 && cur.size() < currentItems.length) {
+                    ans.add(cur);
+                }
+            }
+        }
+        ans.remove(0);
+        return ans;
+    }
+
+
+    private static String output(ArrayList<ConcurrentHashMap<ArrayList<String>, Double>> items) {
+        String returnString = "";
+        for (ConcurrentHashMap<ArrayList<String>, Double> x : items) {
+            for (Map.Entry<ArrayList<String>, Double> entry : x.entrySet()) {
+                returnString += Integer.toString(entry.getKey().size()) + ";";
+                for (String item : entry.getKey()) {
+                    returnString += item + ",";
+                }
+                returnString = returnString.substring(0, returnString.length() - 1);
+                returnString += "\n";
+            }
+        }
+        return returnString;
     }
 
     /**
