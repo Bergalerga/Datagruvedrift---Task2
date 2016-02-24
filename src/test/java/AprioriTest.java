@@ -11,6 +11,7 @@ import static org.junit.Assert.*;
  *
  * @author tdt4300-undass@idi.ntnu.no
  */
+/*
 public class AprioriTest {
 
     private static final String[][] TRANSACTIONS = {
@@ -49,3 +50,4 @@ public class AprioriTest {
     }
 
 }
+*/

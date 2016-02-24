@@ -6,8 +6,6 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.StringReader;
 import java.lang.reflect.Array;
-import java.net.URL;
-import java.net.URLClassLoader;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -81,12 +79,14 @@ public class Apriori {
      * @param support      support threshold
      * @return frequent itemsets in CSV format with columns size and items; columns are semicolon-separated and items are comma-separated
      */
-    public static String generateFrequentItemsets(List<SortedSet<String>> transactions, double support) {
+    public static ArrayList<ConcurrentHashMap<ArrayList<String>, Double>> generateFrequentItemsets(List<SortedSet<String>> transactions, double support) {
         // TODO: Generate and print frequent itemsets given the method parameters.
         int transactionSize = transactions.size();
+        //Items to be generated
         ArrayList<ConcurrentHashMap<ArrayList<String>, Double>> items = new ArrayList<ConcurrentHashMap<ArrayList<String>, Double>>();
+        //Candidates
         ArrayList<ArrayList<String>> candidates = new ArrayList<ArrayList<String>>();
-
+        //Initial adding of candidates
         for (SortedSet<String> list: transactions) {
             for (String s : list) {
                 ArrayList<String> temp = new ArrayList<String>();
@@ -96,13 +96,15 @@ public class Apriori {
                 }
             }
         }
-
+        //Loop until no more candidates can be generated
         while (candidates.size() > 0) {
-
+            //The items that are to be added this iteration
             ConcurrentHashMap<ArrayList<String>, Double> currentLevel = new ConcurrentHashMap<ArrayList<String>, Double>();
+            //Looping over transactions, checking which contains the candidates.
             for (int x = 0; x < transactions.size(); x++) {
                 for (ArrayList<String> candidate : candidates) {
                     if (transactions.get(x).containsAll(candidate)) {
+                        //Puting a new entry into the hashmap, or +1 if it already exists
                         if (!checkContainment(currentLevel.keySet(), candidate)) {
                             currentLevel.put(candidate, 1.0);
                         } else {
@@ -111,24 +113,24 @@ public class Apriori {
                     }
                 }
             }
+            //Checking if the candidates match the required support, removing those that doesent.
             for (Map.Entry<ArrayList<String>, Double> entry : currentLevel.entrySet()) {
                 if ((entry.getValue() / transactionSize < support)) {
                     currentLevel.remove(entry.getKey());
                 }
-                /*
-                else {
-                    currentLevel.put(entry.getKey(), entry.getValue() / entry.getKey().size());
-                }
-                */
             }
             items.add(currentLevel);
+            //Generate candidates for the next iteration
             candidates = generateNewCandidates(new ArrayList<ArrayList<String>>(items.get(items.size() - 1).keySet()));
         }
-        return output(items);
+        return items;
     }
 
     private static ArrayList<ArrayList<String>> generateNewCandidates(ArrayList<ArrayList<String>> items) {
         ArrayList<ArrayList<String>> returnList = new ArrayList<ArrayList<String>>();
+        if (items.size() == 0) {
+            return returnList;
+        }
         int creationLength = items.get(0).size();
 
         for (int x = 0; x < items.size(); x++) {
@@ -170,23 +172,47 @@ public class Apriori {
      * @param confidence   confidence threshold
      * @return association rules in CSV format with columns antecedent, consequent, confidence and support; columns are semicolon-separated and items are comma-separated
      */
-    public static String generateAssociationRules(List<SortedSet<String>> transactions, double support, double confidence) throws IOException {
+    public static String generateAssociationRules(List<SortedSet<String>> transactions, double support, double confidence) {
         // TODO: Generate and print association rules given the method parameters.
-        //READING ITEMS
-        String items = generateFrequentItemsets(transactions, support);
-        BufferedReader bufReader = new BufferedReader(new StringReader(items));
-        String line = null;
 
-        while( (line=bufReader.readLine()) != null )  {
+        //Generate the frequent itemsets.
+        ArrayList<ConcurrentHashMap<ArrayList<String>, Double>> items = generateFrequentItemsets(transactions, support);
+        int transactionSize = transactions.size();
+        String returnString = "";
+        //Create a flattened Hashmap
+        ConcurrentHashMap<ArrayList<String>, Double> flatItems = flatten(items);
+        //Loop over each entry
+        for (Map.Entry<ArrayList<String>, Double> entry : flatItems.entrySet()) {
+            String[] set = entry.getKey().toArray(new String[entry.getKey().size()]);
+            //generate all of the subsets for the given entry.
+            ArrayList<ArrayList<String>> allSubsets = getAllSubsets(set);
+            //remove the empty subset, as well as the full subset.
+            allSubsets.remove(0);
+            allSubsets.remove(allSubsets.size() - 1);
+            //For each of the subsets, perform s -> (l - s) and append to the string that is to be returned.
+            if (allSubsets.size() > 0) {
+                for (ArrayList<String> current : allSubsets) {
+                    Double currentConf = (entry.getValue() / flatItems.get(current));
+                    if (currentConf >= confidence) {
 
-            //CHECKING EACH ITEM, AND CREATING ALL NONEMPTY SUBSETS AS AN ARRAYLIST<ARRAYLIST<STRING>>
-            String splitOnSemiColon = line.substring(line.indexOf(";") + 1);
-            String[] currentItems = splitOnSemiColon.split(",");
-            ArrayList<ArrayList<String>> allNonEmptySubsets = getAllNonEmptySubsets(currentItems);
+                        ArrayList<String> print = new ArrayList<String>(entry.getKey());
+                        for (String s : current) {
+                            if (print.contains(s)) {
+                                print.remove(s);
+                            }
+                        }
 
-        }
+                        returnString += current.toString().replace("[", "").replace("]", "").replace(" ", "") + ";"
+                                + print.toString().replace("[", "").replace("]", "").replace(" ", "") + ";"
+                                + Math.round(currentConf * 100) / 100.0 + ";"
+                                + Math.round((entry.getValue() / transactionSize) * 100) /100.0
+                                + "\n";
+                        }
+                    }
+                }
+            }
 
-        return "hei";
+        return returnString;
         /*
         return "antecedent;consequent;confidence;support\n" +
                 "diapers;beer;0.6;0.5\n" +
@@ -205,24 +231,35 @@ public class Apriori {
                 "diapers;bread,milk;0.6;0.5\n";
         */
     }
-
-    private static ArrayList<ArrayList<String>> getAllNonEmptySubsets(String[] currentItems) {
-
-        ArrayList<ArrayList<String>> ans = new ArrayList<ArrayList<String>>();
-        ans.add(new ArrayList<String>());
-        Arrays.sort(currentItems);
-        for (int i = 0; i < currentItems.length; i ++) {
-            int curSize = ans.size();
-            for (int j = 0; j < curSize; j ++) {
-                ArrayList<String> cur = new ArrayList<String>(ans.get(j));
-                cur.add(currentItems[i]);
-                if (cur.size() > 0 && cur.size() < currentItems.length) {
-                    ans.add(cur);
-                }
+    private static ConcurrentHashMap<ArrayList<String>, Double> flatten(ArrayList<ConcurrentHashMap<ArrayList<String>, Double>> items) {
+        ConcurrentHashMap<ArrayList<String>, Double> flatItems = new ConcurrentHashMap<ArrayList<String>, Double>();
+        for (ConcurrentHashMap<ArrayList<String>, Double> map : items) {
+            for (Map.Entry<ArrayList<String>, Double> entry : map.entrySet()) {
+                Collections.sort(entry.getKey());
+                flatItems.put(entry.getKey(), entry.getValue());
             }
         }
-        ans.remove(0);
-        return ans;
+        return flatItems;
+    }
+
+    private static ArrayList<ArrayList<String>> getAllSubsets(String[] currentItems) {
+        ArrayList<ArrayList<String>> res = new ArrayList<ArrayList<String>>();
+        if(currentItems.length == 0){
+            res.add(new ArrayList<String>());
+            return res;
+        }
+        Arrays.sort(currentItems);
+        String head = currentItems[0];
+        String[] rest = new String[currentItems.length-1];
+        System.arraycopy(currentItems, 1, rest, 0, currentItems.length-1);
+        for(ArrayList<String> list : getAllSubsets(rest)){
+            ArrayList<String> newList = new ArrayList<String>();
+            newList.add(head);
+            newList.addAll(list);
+            res.add(list);
+            res.add(newList);
+        }
+        return res;
     }
 
 
@@ -272,7 +309,7 @@ public class Apriori {
                 System.out.println(generateAssociationRules(transactions, support, confidence));
             } else {
                 // printing generated frequent itemsets
-                System.out.println(generateFrequentItemsets(transactions, support));
+                System.out.println(output(generateFrequentItemsets(transactions, support)));
             }
         } catch (ParseException e) {
             System.err.println(e.getMessage());
